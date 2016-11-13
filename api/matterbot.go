@@ -69,6 +69,43 @@ func SendMatterbotMessage(c *Context, userId string, message string) {
 
 		if _, err := CreatePost(c, post, false); err != nil {
 			// TODO: Handle this error
+		} else {
+			// Ensure that the matterbot channel is being shown
+			go showMatterbotDirectChannel(userId)
+		}
+	}
+}
+
+func showMatterbotDirectChannel(userId string) {
+	if matterbotUser == nil {
+		return
+	}
+
+	var preference *model.Preference
+	if result := <-Srv.Store.Preference().Get(userId, model.PREFERENCE_CATEGORY_DIRECT_CHANNEL_SHOW, matterbotUser.Id); result.Err != nil {
+		// Create a new preference to show the matterbot channel
+		preference = &model.Preference{
+			UserId:   userId,
+			Category: model.PREFERENCE_CATEGORY_DIRECT_CHANNEL_SHOW,
+			Name:     matterbotUser.Id,
+			Value:    "true",
+		}
+	} else if existingPref := result.Data.(*model.Preference); existingPref.Value != "true" {
+		// Change the preference to show the direct channel
+		preference = existingPref
+		preference.Value = "true"
+	}
+
+	// Save the updated preference if we need to
+	if preference != nil {
+		if saveResult := <-Srv.Store.Preference().Save(&model.Preferences{*preference}); saveResult.Err != nil {
+			// TODO: Handle error
+		} else {
+			// Notify that the user's preferences have been changed
+			message := model.NewWebSocketEvent(model.WEBSOCKET_EVENT_PREFERENCE_CHANGED, "", "", userId, nil)
+			message.Add("preference", preference.ToJson())
+
+			go Publish(message)
 		}
 	}
 }
