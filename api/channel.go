@@ -810,6 +810,8 @@ func deleteChannel(c *Context, w http.ResponseWriter, r *http.Request) {
 			if _, err := CreatePost(c, post, false); err != nil {
 				l4g.Error(utils.T("api.channel.delete_channel.failed_post.error"), err)
 			}
+
+			go MatterbotPostChannelDeletedMessage(c, channel, user)
 		}()
 
 		result := make(map[string]string)

@@ -6,6 +6,7 @@ package api
 import (
 	"fmt"
 
+	l4g "github.com/alecthomas/log4go"
 	"github.com/mattermost/platform/model"
 	"github.com/mattermost/platform/utils"
 )
@@ -83,8 +84,25 @@ func MatterbotPostUserRemovedMessage(c *Context, removedUserId string, otherUser
 		return
 	} else {
 		otherUser := oresult.Data.(*model.User)
-		message := fmt.Sprintf(utils.T("api.channel.remove_member.matterbot_remove"), channel.DisplayName, otherUser.Username)
+		message := fmt.Sprintf(utils.T("api.matterbot.channel.remove_member.removed"), channel.DisplayName, otherUser.Username)
 
 		go SendMatterbotMessage(c, removedUserId, message)
+	}
+}
+
+func MatterbotPostChannelDeletedMessage(c *Context, channel *model.Channel, user *model.User) {
+	var members []model.ChannelMember
+
+	if result := <-Srv.Store.Channel().GetMembers(channel.Id); result.Err != nil {
+		l4g.Error(utils.T("api.matterbot.channel.retrieve_members.error"), channel.Id)
+		return
+	} else {
+		members = result.Data.([]model.ChannelMember)
+
+		for _, channelMember := range members {
+			if channelMember.UserId != user.Id {
+				go SendMatterbotMessage(c, channelMember.UserId, fmt.Sprintf(utils.T("api.matterbot.channel.delete_channel.archived"), user.Username, channel.DisplayName))
+			}
+		}
 	}
 }

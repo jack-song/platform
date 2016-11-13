@@ -332,10 +332,6 @@
     "translation": "%v was removed from the channel."
   },
   {
-    "id": "api.channel.remove_member.matterbot_remove",
-    "translation": "You have been removed from the channel %v by %v."
-  },
-  {
     "id": "api.channel.remove_member.unable.app_error",
     "translation": "Unable to remove user."
   },
@@ -1080,6 +1076,18 @@
   {
     "id": "api.license.remove_license.remove.app_error",
     "translation": "License did not remove properly."
+  },
+  {
+    "id": "api.matterbot.channel.retrieve_members.error",
+    "translation": "Matterbot could not retrieve list of members belonging to channel, id=%v"
+  },
+  {
+    "id": "api.matterbot.channel.delete_channel.archived",
+    "translation": "%v archived the private group/public channel %v"
+  },
+  {
+    "id": "api.matterbot.channel.remove_member.removed",
+    "translation": "You have been removed from the channel %v by %v."
   },
   {
     "id": "api.oauth.allow_oauth.bad_client.app_error",
