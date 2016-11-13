@@ -1090,6 +1090,8 @@ func removeMember(c *Context, w http.ResponseWriter, r *http.Request) {
 
 			go PostUserAddRemoveMessage(c, channel.Id, fmt.Sprintf(utils.T("api.channel.remove_member.removed"), oUser.Username), model.POST_ADD_REMOVE)
 
+			go MatterbotPostUserRemovedMessage(c, userIdToRemove, c.Session.UserId, channel)
+
 			result := make(map[string]string)
 			result["channel_id"] = channel.Id
 			result["removed_user_id"] = userIdToRemove

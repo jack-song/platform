@@ -332,6 +332,10 @@
     "translation": "%v was removed from the channel."
   },
   {
+    "id": "api.channel.remove_member.matterbot_remove",
+    "translation": "You have been removed from the channel %v by %v."
+  },
+  {
     "id": "api.channel.remove_member.unable.app_error",
     "translation": "Unable to remove user."
   },

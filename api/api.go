@@ -110,6 +110,7 @@ func InitApi() {
 	utils.InitHTML()
 
 	InitEmailBatching()
+	InitMatterbot()
 }
 
 func HandleEtag(etag string, w http.ResponseWriter, r *http.Request) bool {
