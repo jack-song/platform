@@ -152,6 +152,8 @@ func CreateDirectChannel(userId string, otherUserId string) (*model.Channel, *mo
 	}
 
 	if result := <-Srv.Store.Channel().CreateDirectChannel(userId, otherUserId); result.Err != nil {
+
+		// note: this may not actually give the existing channel, possible bug in sql_channel_store, saveChannelT()
 		if result.Err.Id == store.CHANNEL_EXISTS_ERROR {
 			return result.Data.(*model.Channel), nil
 		} else {
