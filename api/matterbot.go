@@ -14,7 +14,7 @@ import (
 var matterbotUser *model.User
 
 const (
-	MATTERBOT_NAME = "matterbot1"
+	MATTERBOT_NAME = "matter-bot"
 )
 
 func InitMatterbot() {
@@ -31,10 +31,11 @@ func makeMatterbotUserIfNeeded() *model.User {
 	} else {
 		// Create a new matterbot user
 		newUser := &model.User{
-			Email:    "matterbot@example.com",
-			Username: MATTERBOT_NAME,
-			Nickname: MATTERBOT_NAME,
-			Password: "Password1",
+			Email:         "matterbot@mattermost.com",
+			Username:      MATTERBOT_NAME,
+			Nickname:      MATTERBOT_NAME,
+			Password:      model.NewRandomString(16),
+			EmailVerified: true,
 		}
 
 		if u, err := CreateUser(newUser); err != nil {
