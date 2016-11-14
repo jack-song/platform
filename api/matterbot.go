@@ -38,7 +38,7 @@ func makeMatterbotUserIfNeeded() *model.User {
 		}
 
 		if u, err := CreateUser(newUser); err != nil {
-			// TODO: Handle this error
+			l4g.Error(utils.T("api.matterbot.init_matterbot.create_user.error"), err)
 			return nil
 		} else {
 			return u
@@ -47,11 +47,7 @@ func makeMatterbotUserIfNeeded() *model.User {
 }
 
 func SendMatterbotMessage(c *Context, userId string, message string) {
-	if matterbotUser == nil {
-		return
-	}
-
-	if userId == matterbotUser.Id {
+	if matterbotUser == nil || userId == matterbotUser.Id {
 		return
 	}
 
@@ -60,7 +56,8 @@ func SendMatterbotMessage(c *Context, userId string, message string) {
 	if result := <-Srv.Store.Channel().GetByName("", model.GetDMNameFromIds(userId, matterbotUser.Id)); result.Err != nil {
 		// Create a direct channel
 		if sc, err := CreateDirectChannel(matterbotUser.Id, userId); err != nil {
-			// TODO: Handle this error
+			l4g.Error(utils.T("api.matterbot.send_message.create_direct_channel.error"), err)
+			return
 		} else {
 			botchannel = sc
 		}
@@ -78,7 +75,8 @@ func SendMatterbotMessage(c *Context, userId string, message string) {
 		}
 
 		if _, err := CreatePost(c, post, false); err != nil {
-			// TODO: Handle this error
+			l4g.Error(utils.T("api.matterbot.send_message.create_post.error"), err)
+			return
 		}
 	}
 }
@@ -90,7 +88,7 @@ func MatterbotPostUserRemovedMessage(c *Context, removedUserId string, otherUser
 
 	// Get the user that removed the removed user
 	if oresult := <-Srv.Store.User().Get(otherUserId); oresult.Err != nil {
-		// TODO: Handle error
+		l4g.Error(utils.T("api.matterbot.channel.remove_member.error"), oresult.Err)
 		return
 	} else {
 		otherUser := oresult.Data.(*model.User)
@@ -104,7 +102,7 @@ func MatterbotPostChannelDeletedMessage(c *Context, channel *model.Channel, user
 	var members []model.ChannelMember
 
 	if result := <-Srv.Store.Channel().GetMembers(channel.Id); result.Err != nil {
-		l4g.Error(utils.T("api.matterbot.channel.retrieve_members.error"), channel.Id)
+		l4g.Error(utils.T("api.matterbot.channel.retrieve_members.error"), result.Err)
 		return
 	} else {
 		members = result.Data.([]model.ChannelMember)
