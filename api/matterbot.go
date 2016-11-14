@@ -55,13 +55,23 @@ func SendMatterbotMessage(c *Context, userId string, message string) {
 		return
 	}
 
-	// Get or create direct message channel to the user from matterbot
-	if sc, err := CreateDirectChannel(matterbotUser.Id, userId); err != nil {
-		// TODO: Handle this error
-		return
+	// Try to get an existing direct channel
+	var botchannel *model.Channel
+	if result := <-Srv.Store.Channel().GetByName("", model.GetDMNameFromIds(userId, matterbotUser.Id)); result.Err != nil {
+		// Create a direct channel
+		if sc, err := CreateDirectChannel(matterbotUser.Id, userId); err != nil {
+			// TODO: Handle this error
+		} else {
+			botchannel = sc
+		}
 	} else {
+		botchannel = result.Data.(*model.Channel)
+	}
+
+	// Create the post
+	if botchannel != nil {
 		post := &model.Post{
-			ChannelId: sc.Id,
+			ChannelId: botchannel.Id,
 			Message:   message,
 			Type:      model.POST_DEFAULT,
 			UserId:    matterbotUser.Id,
@@ -90,9 +100,9 @@ func showMatterbotDirectChannel(userId string) {
 			Name:     matterbotUser.Id,
 			Value:    "true",
 		}
-	} else if existingPref := result.Data.(*model.Preference); existingPref.Value != "true" {
+	} else if existingPref := result.Data.(model.Preference); existingPref.Value != "true" {
 		// Change the preference to show the direct channel
-		preference = existingPref
+		preference = &existingPref
 		preference.Value = "true"
 	}
 
