@@ -5,6 +5,9 @@ package api
 
 import (
 	"fmt"
+	"regexp"
+
+	"strings"
 
 	l4g "github.com/alecthomas/log4go"
 	"github.com/mattermost/platform/model"
@@ -113,5 +116,41 @@ func MatterbotPostChannelDeletedMessage(c *Context, channel *model.Channel, user
 				go SendMatterbotMessage(c, channelMember.UserId, fmt.Sprintf(utils.T("api.matterbot.channel.delete_channel.archived"), user.Username, channel.DisplayName))
 			}
 		}
+	}
+}
+
+func MatterbotProcessPost(c *Context, post *model.Post) {
+	if matterbotUser == nil || matterbotUser.Id == post.UserId {
+		return
+	}
+
+	// Check if the post was sent to matterbot
+	if cresult := <-Srv.Store.Channel().GetByName("", model.GetDMNameFromIds(post.UserId, matterbotUser.Id)); cresult.Err != nil {
+		// No direct message channel between sender and matterbot
+		return
+	} else if cresult.Data.(*model.Channel).Id != post.ChannelId {
+		// The message is not meant for matterbot
+		return
+	}
+
+	// Get the sending user to retrieve personal information
+	var sender *model.User
+	if uresult := <-Srv.Store.User().Get(post.UserId); uresult.Err != nil {
+		// No user for the post
+		return
+	} else {
+		sender = uresult.Data.(*model.User)
+	}
+
+	msg := strings.ToLower(post.Message)
+
+	// Respond to a greeting
+	if matched, _ := regexp.MatchString(`(?:^|\W)(?:hi|hello|hey)(?: matterbot)?!*(?:$|\W)`, msg); matched {
+		SendMatterbotMessage(c, sender.Id, "Hey "+sender.GetDisplayName()+"!")
+	}
+
+	// Respond to gratitude
+	if matched, _ := regexp.MatchString(`(?:^|\W)(?:thanks|thank you)(?: matterbot)?!*(?:$|\W)`, msg); matched {
+		SendMatterbotMessage(c, sender.Id, "No problem "+sender.GetDisplayName()+"!")
 	}
 }
