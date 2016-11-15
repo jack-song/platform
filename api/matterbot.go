@@ -113,7 +113,8 @@ func MatterbotPostChannelDeletedMessage(c *Context, channel *model.Channel, user
 
 		for _, channelMember := range members {
 			if channelMember.UserId != user.Id {
-				go SendMatterbotMessage(c, channelMember.UserId, fmt.Sprintf(utils.T("api.matterbot.channel.delete_channel.archived"), user.Username, channel.DisplayName))
+				message := fmt.Sprintf(utils.T("api.matterbot.channel.delete_channel.archived"), user.Username, channel.DisplayName)
+				go SendMatterbotMessage(c, channelMember.UserId, message)
 			}
 		}
 	}
