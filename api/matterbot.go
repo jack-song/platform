@@ -17,7 +17,8 @@ import (
 var matterbotUser *model.User
 
 const (
-	MATTERBOT_NAME = "matter-bot"
+	matterbotName  = "matter-bot"
+	matterbotEmail = "matterbot@mattermost.com"
 )
 
 func InitMatterbot() {
@@ -29,24 +30,28 @@ func InitMatterbot() {
 
 func makeMatterbotUserIfNeeded() *model.User {
 	// Try to find an existing matterbot user
-	if result := <-Srv.Store.User().GetByUsername(MATTERBOT_NAME); result.Err == nil {
-		return result.Data.(*model.User)
-	} else {
-		// Create a new matterbot user
-		newUser := &model.User{
-			Email:         "matterbot@mattermost.com",
-			Username:      MATTERBOT_NAME,
-			Nickname:      MATTERBOT_NAME,
-			Password:      model.NewRandomString(16),
-			EmailVerified: true,
-		}
-
-		if u, err := CreateUser(newUser); err != nil {
-			l4g.Error(utils.T("api.matterbot.init_matterbot.create_user.error"), err)
+	if result := <-Srv.Store.User().GetByUsername(matterbotName); result.Err == nil {
+		existingUser := result.Data.(*model.User)
+		if existingUser.Email != matterbotEmail || !existingUser.EmailVerified {
+			l4g.Error(utils.T("api.matterbot.init_matterbot.create_user.error"))
 			return nil
-		} else {
-			return u
 		}
+		return existingUser
+	}
+	// Create a new matterbot user
+	newUser := &model.User{
+		Email:         matterbotEmail,
+		Username:      matterbotName,
+		Nickname:      matterbotName,
+		Password:      model.NewRandomString(16),
+		EmailVerified: true,
+	}
+
+	if u, err := CreateUser(newUser); err != nil {
+		l4g.Error(utils.T("api.matterbot.init_matterbot.create_user.error"), err)
+		return nil
+	} else {
+		return u
 	}
 }
 
