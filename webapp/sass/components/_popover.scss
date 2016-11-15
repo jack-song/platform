@@ -79,6 +79,7 @@
         .popover-content {
             padding: 10px;
             position: relative;
+            -webkit-overflow-scrolling: touch;
         }
     }
 
@@ -126,6 +127,10 @@
 
         &.selected {
             background: alpha-color($black, .2);
+        }
+
+        .mention--align {
+            display: inline-block;
         }
 
         .fa {
@@ -182,6 +187,12 @@
 
 .member-list__popover {
     max-width: initial;
+
+    .more-modal__list {
+        .more-modal__row {
+            min-height: inherit;
+        }
+    }
 
     .popover-content {
         max-height: 350px;

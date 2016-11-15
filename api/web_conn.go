@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/mattermost/platform/model"
+	"github.com/mattermost/platform/utils"
 
 	l4g "github.com/alecthomas/log4go"
 	"github.com/gorilla/websocket"
@@ -15,9 +16,10 @@ import (
 )
 
 const (
-	WRITE_WAIT  = 30 * time.Second
-	PONG_WAIT   = 100 * time.Second
-	PING_PERIOD = (PONG_WAIT * 6) / 10
+	WRITE_WAIT   = 30 * time.Second
+	PONG_WAIT    = 100 * time.Second
+	PING_PERIOD  = (PONG_WAIT * 6) / 10
+	AUTH_TIMEOUT = 5 * time.Second
 )
 
 type WebConn struct {
@@ -32,7 +34,9 @@ type WebConn struct {
 }
 
 func NewWebConn(c *Context, ws *websocket.Conn) *WebConn {
-	go SetStatusOnline(c.Session.UserId, c.Session.Id, false)
+	if len(c.Session.UserId) > 0 {
+		go SetStatusOnline(c.Session.UserId, c.Session.Id, false)
+	}
 
 	return &WebConn{
 		Send:         make(chan model.WebSocketMessage, 256),
@@ -53,7 +57,9 @@ func (c *WebConn) readPump() {
 	c.WebSocket.SetReadDeadline(time.Now().Add(PONG_WAIT))
 	c.WebSocket.SetPongHandler(func(string) error {
 		c.WebSocket.SetReadDeadline(time.Now().Add(PONG_WAIT))
-		go SetStatusAwayIfNeeded(c.UserId, false)
+		if c.isAuthenticated() {
+			go SetStatusAwayIfNeeded(c.UserId, false)
+		}
 		return nil
 	})
 
@@ -64,7 +70,7 @@ func (c *WebConn) readPump() {
 			if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseNoStatusReceived) {
 				l4g.Debug(fmt.Sprintf("websocket.read: client side closed socket userId=%v", c.UserId))
 			} else {
-				l4g.Debug(fmt.Sprintf("websocket.read: cannot read, closing websocket for userId=%v error=%v", c.UserId, err.Error()))
+				l4g.Debug(fmt.Sprintf("websocket.read: closing websocket for userId=%v error=%v", c.UserId, err.Error()))
 			}
 
 			return
@@ -76,9 +82,11 @@ func (c *WebConn) readPump() {
 
 func (c *WebConn) writePump() {
 	ticker := time.NewTicker(PING_PERIOD)
+	authTicker := time.NewTicker(AUTH_TIMEOUT)
 
 	defer func() {
 		ticker.Stop()
+		authTicker.Stop()
 		c.WebSocket.Close()
 	}()
 
@@ -97,7 +105,7 @@ func (c *WebConn) writePump() {
 				if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseNoStatusReceived) {
 					l4g.Debug(fmt.Sprintf("websocket.send: client side closed socket userId=%v", c.UserId))
 				} else {
-					l4g.Debug(fmt.Sprintf("websocket.send: cannot send, closing websocket for userId=%v, error=%v", c.UserId, err.Error()))
+					l4g.Debug(fmt.Sprintf("websocket.send: closing websocket for userId=%v, error=%v", c.UserId, err.Error()))
 				}
 
 				return
@@ -110,11 +118,18 @@ func (c *WebConn) writePump() {
 				if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseNoStatusReceived) {
 					l4g.Debug(fmt.Sprintf("websocket.ticker: client side closed socket userId=%v", c.UserId))
 				} else {
-					l4g.Debug(fmt.Sprintf("websocket.ticker: cannot read, closing websocket for userId=%v error=%v", c.UserId, err.Error()))
+					l4g.Debug(fmt.Sprintf("websocket.ticker: closing websocket for userId=%v error=%v", c.UserId, err.Error()))
 				}
 
 				return
 			}
+
+		case <-authTicker.C:
+			if c.SessionToken == "" {
+				l4g.Debug(fmt.Sprintf("websocket.authTicker: did not authenticate ip=%v", c.WebSocket.RemoteAddr()))
+				return
+			}
+			authTicker.Stop()
 		}
 	}
 }
@@ -122,10 +137,25 @@ func (c *WebConn) writePump() {
 func (webCon *WebConn) InvalidateCache() {
 	webCon.AllChannelMembers = nil
 	webCon.LastAllChannelMembersTime = 0
+}
 
+func (webCon *WebConn) isAuthenticated() bool {
+	return webCon.SessionToken != ""
+}
+
+func (webCon *WebConn) SendHello() {
+	msg := model.NewWebSocketEvent(model.WEBSOCKET_EVENT_HELLO, "", "", webCon.UserId, nil)
+	msg.Add("server_version", fmt.Sprintf("%v.%v.%v", model.CurrentVersion, model.BuildNumber, utils.CfgHash))
+	msg.DoPreComputeJson()
+	webCon.Send <- msg
 }
 
 func (webCon *WebConn) ShouldSendEvent(msg *model.WebSocketEvent) bool {
+	// IMPORTANT: Do not send event if WebConn does not have a session
+	if !webCon.isAuthenticated() {
+		return false
+	}
+
 	// If the event is destined to a specific user
 	if len(msg.Broadcast.UserId) > 0 && webCon.UserId != msg.Broadcast.UserId {
 		return false

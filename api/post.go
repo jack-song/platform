@@ -507,9 +507,6 @@ func getExplicitMentions(message string, keywords map[string][]string) (map[stri
 		if ids, match := keywords[word]; match {
 			addMentionedUsers(ids)
 			isMention = true
-		} else if _, ok := systemMentions[word]; !ok && strings.HasPrefix(word, "@") {
-			potentialOthersMentioned = append(potentialOthersMentioned, word[1:])
-			continue
 		}
 
 		if !isMention {
@@ -849,9 +846,7 @@ func sendNotificationEmail(c *Context, post *model.Post, user *model.User, chann
 			"ChannelName": channelName, "Month": month, "Day": day, "Year": year}
 	}
 
-	subjectPage := utils.NewHTMLTemplate("post_subject", user.Locale)
-	subjectPage.Props["Subject"] = userLocale(mailTemplate, mailParameters)
-	subjectPage.Props["SiteName"] = utils.Cfg.TeamSettings.SiteName
+	subject := fmt.Sprintf("[%v] %v", utils.Cfg.TeamSettings.SiteName, userLocale(mailTemplate, mailParameters))
 
 	bodyPage := utils.NewHTMLTemplate("post_body", user.Locale)
 	bodyPage.Props["SiteURL"] = c.GetSiteURL()
@@ -864,7 +859,7 @@ func sendNotificationEmail(c *Context, post *model.Post, user *model.User, chann
 			"Hour": fmt.Sprintf("%02d", tm.Hour()), "Minute": fmt.Sprintf("%02d", tm.Minute()),
 			"TimeZone": zone, "Month": month, "Day": day}))
 
-	if err := utils.SendMail(user.Email, html.UnescapeString(subjectPage.Render()), bodyPage.Render()); err != nil {
+	if err := utils.SendMail(user.Email, html.UnescapeString(subject), bodyPage.Render()); err != nil {
 		l4g.Error(utils.T("api.post.send_notifications_and_forget.send.error"), user.Email, err)
 	}
 }
@@ -905,9 +900,9 @@ func getMessageForNotification(post *model.Post, translateFunc i18n.TranslateFun
 }
 
 func sendPushNotification(post *model.Post, user *model.User, channel *model.Channel, senderName string, wasMentioned bool) {
-	session := getMobileAppSession(user.Id)
+	sessions := getMobileAppSessions(user.Id)
 
-	if session == nil {
+	if sessions == nil {
 		return
 	}
 
@@ -932,8 +927,6 @@ func sendPushNotification(post *model.Post, user *model.User, channel *model.Cha
 	msg.ChannelId = channel.Id
 	msg.ChannelName = channel.Name
 
-	msg.SetDeviceIdAndPlatform(session.DeviceId)
-
 	if *utils.Cfg.EmailSettings.PushNotificationContents == model.FULL_NOTIFICATION {
 		if channel.Type == model.CHANNEL_DIRECT {
 			msg.Category = model.CATEGORY_DM
@@ -953,12 +946,17 @@ func sendPushNotification(post *model.Post, user *model.User, channel *model.Cha
 	}
 
 	l4g.Debug(utils.T("api.post.send_notifications_and_forget.push_notification.debug"), msg.DeviceId, msg.Message)
-	sendToPushProxy(msg)
+
+	for _, session := range sessions {
+		tmpMessage := *model.PushNotificationFromJson(strings.NewReader(msg.ToJson()))
+		tmpMessage.SetDeviceIdAndPlatform(session.DeviceId)
+		sendToPushProxy(tmpMessage)
+	}
 }
 
 func clearPushNotification(userId string, channelId string) {
-	session := getMobileAppSession(userId)
-	if session == nil {
+	sessions := getMobileAppSessions(userId)
+	if sessions == nil {
 		return
 	}
 
@@ -973,10 +971,12 @@ func clearPushNotification(userId string, channelId string) {
 		msg.Badge = int(badge.Data.(int64))
 	}
 
-	msg.SetDeviceIdAndPlatform(session.DeviceId)
-
 	l4g.Debug(utils.T("api.post.send_notifications_and_forget.clear_push_notification.debug"), msg.DeviceId, msg.ChannelId)
-	sendToPushProxy(msg)
+	for _, session := range sessions {
+		tmpMessage := *model.PushNotificationFromJson(strings.NewReader(msg.ToJson()))
+		tmpMessage.SetDeviceIdAndPlatform(session.DeviceId)
+		sendToPushProxy(tmpMessage)
+	}
 }
 
 func sendToPushProxy(msg model.PushNotification) {
@@ -996,22 +996,13 @@ func sendToPushProxy(msg model.PushNotification) {
 	}
 }
 
-func getMobileAppSession(userId string) *model.Session {
-	var sessions []*model.Session
-	if result := <-Srv.Store.Session().GetSessions(userId); result.Err != nil {
+func getMobileAppSessions(userId string) []*model.Session {
+	if result := <-Srv.Store.Session().GetSessionsWithActiveDeviceIds(userId); result.Err != nil {
 		l4g.Error(utils.T("api.post.send_notifications_and_forget.sessions.error"), userId, result.Err)
 		return nil
 	} else {
-		sessions = result.Data.([]*model.Session)
+		return result.Data.([]*model.Session)
 	}
-
-	for _, session := range sessions {
-		if session.IsMobileApp() {
-			return session
-		}
-	}
-
-	return nil
 }
 
 func sendOutOfChannelMentions(c *Context, post *model.Post, profiles map[string]*model.User) {
@@ -1337,16 +1328,15 @@ func getPermalinkTmp(c *Context, w http.ResponseWriter, r *http.Request) {
 		}
 		post := list.Posts[list.Order[0]]
 
-		if !HasPermissionToChannelContext(c, post.ChannelId, model.PERMISSION_READ_CHANNEL) {
-			// If we don't have permissions attempt to join the channel to fix the problem
-			if err, _ := JoinChannelById(c, c.Session.UserId, post.ChannelId); err != nil {
-				// On error just return with permissions error
-				c.Err = err
-				return
-			} else {
-				// If we sucessfully joined the channel then clear the permissions error and continue
-				c.Err = nil
-			}
+		// Because we confuse permissions and membership in Mattermost's model, we have to just
+		// try to join the channel without checking if we already have permission to it. This is
+		// because system admins have permissions to every channel but are not nessisary a member
+		// of every channel. If we checked here then system admins would skip joining the channel and
+		// error when they tried to view it.
+		if err, _ := JoinChannelById(c, c.Session.UserId, post.ChannelId); err != nil {
+			// On error just return with permissions error
+			c.Err = err
+			return
 		}
 
 		if HandleEtag(list.Etag(), w, r) {

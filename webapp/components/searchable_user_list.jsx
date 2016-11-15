@@ -33,6 +33,12 @@ export default class SearchableUserList extends React.Component {
         };
     }
 
+    componentDidMount() {
+        if (this.props.focusOnMount) {
+            this.refs.filter.focus();
+        }
+    }
+
     componentDidUpdate(prevProps, prevState) {
         if (this.state.page !== prevState.page) {
             $(ReactDOM.findDOMNode(this.refs.userList)).scrollTop(0);
@@ -150,12 +156,9 @@ export default class SearchableUserList extends React.Component {
         }
 
         return (
-            <div
-                className='filtered-user-list'
-                style={this.props.style}
-            >
+            <div className='filtered-user-list'>
                 <div className='filter-row'>
-                    <div className='col-sm-5'>
+                    <div className='col-xs-9 col-sm-5'>
                         <input
                             ref='filter'
                             className='form-control filter-textbox'
@@ -164,7 +167,7 @@ export default class SearchableUserList extends React.Component {
                             onChange={this.onSearchBoxChange}
                         />
                     </div>
-                    <div className='col-sm-2 filter-button'>
+                    <div className='col-xs-3 col-sm-2 filter-button'>
                         <button
                             type='button'
                             className='btn btn-primary'
@@ -209,7 +212,8 @@ SearchableUserList.defaultProps = {
     actions: [],
     actionProps: {},
     actionUserProps: {},
-    showTeamToggle: false
+    showTeamToggle: false,
+    focusOnMount: false
 };
 
 SearchableUserList.propTypes = {
@@ -222,5 +226,5 @@ SearchableUserList.propTypes = {
     actions: React.PropTypes.arrayOf(React.PropTypes.func),
     actionProps: React.PropTypes.object,
     actionUserProps: React.PropTypes.object,
-    style: React.PropTypes.object
+    focusOnMount: React.PropTypes.bool.isRequired
 };

@@ -44,9 +44,13 @@ func NewSqlTeamStore(sqlStore *SqlStore) TeamStore {
 func (s SqlTeamStore) CreateIndexesIfNotExists() {
 	s.CreateIndexIfNotExists("idx_teams_name", "Teams", "Name")
 	s.CreateIndexIfNotExists("idx_teams_invite_id", "Teams", "InviteId")
+	s.CreateIndexIfNotExists("idx_teams_update_at", "Teams", "UpdateAt")
+	s.CreateIndexIfNotExists("idx_teams_create_at", "Teams", "CreateAt")
+	s.CreateIndexIfNotExists("idx_teams_delete_at", "Teams", "DeleteAt")
 
 	s.CreateIndexIfNotExists("idx_teammembers_team_id", "TeamMembers", "TeamId")
 	s.CreateIndexIfNotExists("idx_teammembers_user_id", "TeamMembers", "UserId")
+	s.CreateIndexIfNotExists("idx_teammembers_delete_at", "TeamMembers", "DeleteAt")
 }
 
 func (s SqlTeamStore) Save(team *model.Team) StoreChannel {
@@ -463,7 +467,7 @@ func (s SqlTeamStore) GetMembers(teamId string, offset int, limit int) StoreChan
 	return storeChannel
 }
 
-func (s SqlTeamStore) GetMemberCount(teamId string) StoreChannel {
+func (s SqlTeamStore) GetTotalMemberCount(teamId string) StoreChannel {
 	storeChannel := make(StoreChannel, 1)
 
 	go func() {
@@ -478,10 +482,39 @@ func (s SqlTeamStore) GetMemberCount(teamId string) StoreChannel {
 			WHERE
 				TeamMembers.UserId = Users.Id
 				AND TeamMembers.TeamId = :TeamId
-                AND TeamMembers.DeleteAt = 0
+				AND TeamMembers.DeleteAt = 0`, map[string]interface{}{"TeamId": teamId})
+		if err != nil {
+			result.Err = model.NewLocAppError("SqlTeamStore.GetTotalMemberCount", "store.sql_team.get_member_count.app_error", nil, "teamId="+teamId+" "+err.Error())
+		} else {
+			result.Data = count
+		}
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
+}
+
+func (s SqlTeamStore) GetActiveMemberCount(teamId string) StoreChannel {
+	storeChannel := make(StoreChannel, 1)
+
+	go func() {
+		result := StoreResult{}
+
+		count, err := s.GetReplica().SelectInt(`
+			SELECT
+				count(*)
+			FROM
+				TeamMembers,
+				Users
+			WHERE
+				TeamMembers.UserId = Users.Id
+				AND TeamMembers.TeamId = :TeamId
+				AND TeamMembers.DeleteAt = 0
 				AND Users.DeleteAt = 0`, map[string]interface{}{"TeamId": teamId})
 		if err != nil {
-			result.Err = model.NewLocAppError("SqlTeamStore.GetMemberCount", "store.sql_team.get_member_count.app_error", nil, "teamId="+teamId+" "+err.Error())
+			result.Err = model.NewLocAppError("SqlTeamStore.GetActiveMemberCount", "store.sql_team.get_member_count.app_error", nil, "teamId="+teamId+" "+err.Error())
 		} else {
 			result.Data = count
 		}

@@ -11,9 +11,9 @@ import TeamStore from 'stores/team_store.jsx';
 import UserStore from 'stores/user_store.jsx';
 
 import {searchUsers, loadProfilesAndTeamMembers, loadTeamMembersForProfilesList} from 'actions/user_actions.jsx';
-import {getTeamStats} from 'utils/async_client.jsx';
+import {getTeamStats, getUser} from 'utils/async_client.jsx';
 
-import Constants from 'utils/constants.jsx';
+import {Constants, UserSearchOptions} from 'utils/constants.jsx';
 import * as Utils from 'utils/utils.jsx';
 
 import React from 'react';
@@ -49,7 +49,7 @@ export default class UserList extends React.Component {
             team: AdminStore.getTeam(this.props.params.team),
             users: [],
             teamMembers: TeamStore.getMembersInTeam(this.props.params.team),
-            total: stats.member_count,
+            total: stats.total_member_count,
             serverError: null,
             showPasswordModal: false,
             loading: true,
@@ -59,6 +59,7 @@ export default class UserList extends React.Component {
 
     componentDidMount() {
         AdminStore.addAllTeamsChangeListener(this.onAllTeamsChange);
+        UserStore.addChangeListener(this.onUsersChange);
         UserStore.addInTeamChangeListener(this.onUsersChange);
         TeamStore.addChangeListener(this.onTeamChange);
         TeamStore.addStatsChangeListener(this.onStatsChange);
@@ -74,7 +75,7 @@ export default class UserList extends React.Component {
                 team: AdminStore.getTeam(nextProps.params.team),
                 users: [],
                 teamMembers: TeamStore.getMembersInTeam(nextProps.params.team),
-                total: stats.member_count
+                total: stats.total_member_count
             });
 
             this.getTeamProfiles(nextProps.params.team);
@@ -83,6 +84,7 @@ export default class UserList extends React.Component {
 
     componentWillUnmount() {
         AdminStore.removeAllTeamsChangeListener(this.onAllTeamsChange);
+        UserStore.removeChangeListener(this.onUsersChange);
         UserStore.removeInTeamChangeListener(this.onUsersChange);
         TeamStore.removeChangeListener(this.onTeamChange);
         TeamStore.removeStatsChangeListener(this.onStatsChange);
@@ -100,7 +102,7 @@ export default class UserList extends React.Component {
 
     onStatsChange() {
         const stats = TeamStore.getStats(this.props.params.team);
-        this.setState({total: stats.member_count});
+        this.setState({total: stats.total_member_count});
     }
 
     onUsersChange() {
@@ -129,8 +131,8 @@ export default class UserList extends React.Component {
         });
     }
 
-    doPasswordResetSubmit() {
-        this.getCurrentTeamProfiles();
+    doPasswordResetSubmit(user) {
+        getUser(user.id);
         this.setState({
             showPasswordModal: false,
             user: null
@@ -143,10 +145,13 @@ export default class UserList extends React.Component {
             return;
         }
 
+        const options = {};
+        options[UserSearchOptions.ALLOW_INACTIVE] = true;
+
         searchUsers(
             term,
             this.props.params.team,
-            {},
+            options,
             (users) => {
                 this.setState({loading: true, search: true, users});
                 loadTeamMembersForProfilesList(users, this.props.params.team, this.loadComplete);
@@ -203,6 +208,7 @@ export default class UserList extends React.Component {
                     }
 
                     if (mfaEnabled) {
+                        info.push(', ');
                         if (user.mfa_active) {
                             info.push(
                                 <FormattedHTMLMessage
@@ -252,7 +258,6 @@ export default class UserList extends React.Component {
                             search={this.search}
                             actions={[AdminTeamMembersDropdown]}
                             actionProps={{
-                                refreshProfiles: this.getCurrentTeamProfiles,
                                 doPasswordReset: this.doPasswordReset
                             }}
                             actionUserProps={actionUserProps}

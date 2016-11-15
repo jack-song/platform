@@ -52,7 +52,7 @@ class BrowserStoreClass {
         }
     }
 
-    getGlobalItem(name, defaultValue) {
+    getGlobalItem(name, defaultValue = null) {
         var result = null;
         try {
             if (this.isLocalStorageSupported()) {
@@ -64,7 +64,7 @@ class BrowserStoreClass {
             result = null;
         }
 
-        if (result === null && typeof defaultValue !== 'undefined') {
+        if (!result) {
             result = defaultValue;
         }
 
@@ -203,7 +203,11 @@ class BrowserStoreClass {
     }
 
     hasSeenLandingPage() {
-        return JSON.parse(sessionStorage.getItem('__landingPageSeen__'));
+        if (this.isLocalStorageSupported()) {
+            return JSON.parse(sessionStorage.getItem('__landingPageSeen__'));
+        }
+
+        return true;
     }
 
     setLandingPageSeen(landingPageSeen) {

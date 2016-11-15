@@ -169,11 +169,12 @@ class UserStoreClass extends EventEmitter {
     // System-Wide Profiles
 
     saveProfiles(profiles) {
+        const newProfiles = Object.assign({}, profiles);
         const currentId = this.getCurrentId();
-        if (profiles[currentId]) {
-            Reflect.deleteProperty(profiles, currentId);
+        if (newProfiles[currentId]) {
+            Reflect.deleteProperty(newProfiles, currentId);
         }
-        this.profiles = Object.assign({}, this.profiles, profiles);
+        this.profiles = Object.assign({}, this.profiles, newProfiles);
     }
 
     getProfiles() {
@@ -311,7 +312,7 @@ class UserStoreClass extends EventEmitter {
         this.saveProfiles(profiles);
     }
 
-    getProfileListInTeam(teamId = TeamStore.getCurrentId(), skipCurrent) {
+    getProfileListInTeam(teamId = TeamStore.getCurrentId(), skipCurrent = false, skipInactive = false) {
         const userIds = this.profiles_in_team[teamId] || [];
         const profiles = [];
         const currentId = this.getCurrentId();
@@ -319,16 +320,36 @@ class UserStoreClass extends EventEmitter {
         for (let i = 0; i < userIds.length; i++) {
             const profile = this.getProfile(userIds[i]);
 
+            if (!profile) {
+                continue;
+            }
+
             if (skipCurrent && profile.id === currentId) {
                 continue;
             }
 
-            if (profile) {
-                profiles.push(profile);
+            if (skipInactive && profile.delete_at > 0) {
+                continue;
             }
+
+            profiles.push(profile);
         }
 
         return profiles;
+    }
+
+    removeProfileFromTeam(teamId, userId) {
+        const userIds = this.profiles_in_team[teamId];
+        if (!userIds) {
+            return;
+        }
+
+        const index = userIds.indexOf(userId);
+        if (index === -1) {
+            return;
+        }
+
+        userIds.splice(index, 1);
     }
 
     // Channel-Wide Profiles
@@ -454,15 +475,22 @@ class UserStoreClass extends EventEmitter {
         userIds.splice(index, 1);
     }
 
-    getProfileListNotInChannel(channelId = ChannelStore.getCurrentId()) {
+    getProfileListNotInChannel(channelId = ChannelStore.getCurrentId(), skipInactive = false) {
         const userIds = this.profiles_not_in_channel[channelId] || [];
         const profiles = [];
 
         for (let i = 0; i < userIds.length; i++) {
             const profile = this.getProfile(userIds[i]);
-            if (profile) {
-                profiles.push(profile);
+
+            if (!profile) {
+                continue;
             }
+
+            if (skipInactive && profile.delete_at > 0) {
+                continue;
+            }
+
+            profiles.push(profile);
         }
 
         return profiles;

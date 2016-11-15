@@ -69,17 +69,19 @@ func HubStop() {
 	hubs = make([]*Hub, 0)
 }
 
-func HubRegister(webConn *WebConn) {
+func GetHubForUserId(userId string) *Hub {
 	hash := fnv.New32a()
-	hash.Write([]byte(webConn.UserId))
+	hash.Write([]byte(userId))
 	index := hash.Sum32() % uint32(len(hubs))
-	hubs[index].Register(webConn)
+	return hubs[index]
+}
+
+func HubRegister(webConn *WebConn) {
+	GetHubForUserId(webConn.UserId).Register(webConn)
 }
 
 func HubUnregister(webConn *WebConn) {
-	for _, hub := range hubs {
-		hub.Unregister(webConn)
-	}
+	GetHubForUserId(webConn.UserId).Unregister(webConn)
 }
 
 func Publish(message *model.WebSocketEvent) {
@@ -101,38 +103,26 @@ func PublishSkipClusterSend(message *model.WebSocketEvent) {
 }
 
 func InvalidateCacheForUser(userId string) {
-
-	Srv.Store.Channel().InvalidateAllChannelMembersForUser(userId)
-
-	for _, hub := range hubs {
-		hub.InvalidateUser(userId)
-	}
+	InvalidateCacheForUserSkipClusterSend(userId)
 
 	if einterfaces.GetClusterInterface() != nil {
 		einterfaces.GetClusterInterface().InvalidateCacheForUser(userId)
 	}
 }
 
-func InvalidateCacheForChannel(channelId string) {
+func InvalidateCacheForUserSkipClusterSend(userId string) {
+	Srv.Store.Channel().InvalidateAllChannelMembersForUser(userId)
+	Srv.Store.User().InvalidateProfilesInChannelCacheByUser(userId)
 
-	// XXX TODO FIX ME
-	// This can be removed, but the performance branch
-	// needs to be merged into master so it can be removed
-	// from the enterprise repo as well.
-
-	// hub.invalidateChannel <- channelId
-
-	// if einterfaces.GetClusterInterface() != nil {
-	// 	einterfaces.GetClusterInterface().InvalidateCacheForChannel(channelId)
-	// }
+	GetHubForUserId(userId).InvalidateUser(userId)
 }
 
 func (h *Hub) Register(webConn *WebConn) {
 	h.register <- webConn
 
-	msg := model.NewWebSocketEvent(model.WEBSOCKET_EVENT_HELLO, "", "", webConn.UserId, nil)
-	msg.Add("server_version", fmt.Sprintf("%v.%v.%v", model.CurrentVersion, model.BuildNumber, utils.CfgHash))
-	go Publish(msg)
+	if webConn.isAuthenticated() {
+		webConn.SendHello()
+	}
 }
 
 func (h *Hub) Unregister(webConn *WebConn) {
@@ -165,6 +155,10 @@ func (h *Hub) Start() {
 				if _, ok := h.connections[webCon]; ok {
 					delete(h.connections, webCon)
 					close(webCon.Send)
+				}
+
+				if len(userId) == 0 {
+					continue
 				}
 
 				found := false

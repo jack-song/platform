@@ -35,7 +35,7 @@ func TestCreateChannel(t *testing.T) {
 
 	rget := Client.Must(Client.GetChannels("")).Data.(*model.ChannelList)
 	nameMatch := false
-	for _, c := range rget.Channels {
+	for _, c := range *rget {
 		if c.Name == channel.Name {
 			nameMatch = true
 		}
@@ -240,8 +240,8 @@ func TestUpdateChannel(t *testing.T) {
 	}
 
 	rget := Client.Must(Client.GetChannels(""))
-	data := rget.Data.(*model.ChannelList)
-	for _, c := range data.Channels {
+	channels := rget.Data.(*model.ChannelList)
+	for _, c := range *channels {
 		if c.Name == model.DEFAULT_CHANNEL {
 			c.Header = "new header"
 			c.Name = "pseudo-square"
@@ -377,6 +377,8 @@ func TestUpdateChannelHeader(t *testing.T) {
 	} else {
 		upChannel1 = result.Data.(*model.Channel)
 	}
+
+	time.Sleep(100 * time.Millisecond)
 
 	r1 := Client.Must(Client.GetPosts(channel1.Id, 0, 1, "")).Data.(*model.PostList)
 	if len(r1.Order) != 1 {
@@ -546,7 +548,7 @@ func TestUpdateChannelPurpose(t *testing.T) {
 	}
 
 	data["channel_id"] = channel1.Id
-	data["channel_purpose"] = strings.Repeat("a", 150)
+	data["channel_purpose"] = strings.Repeat("a", 350)
 	if _, err := Client.UpdateChannelPurpose(data); err == nil {
 		t.Fatal("should have errored on bad channel purpose")
 	}
@@ -654,13 +656,13 @@ func TestGetChannel(t *testing.T) {
 	channel2 = Client.Must(Client.CreateChannel(channel2)).Data.(*model.Channel)
 
 	rget := Client.Must(Client.GetChannels(""))
-	data := rget.Data.(*model.ChannelList)
+	channels := rget.Data.(*model.ChannelList)
 
-	if data.Channels[0].DisplayName != channel1.DisplayName {
+	if (*channels)[0].DisplayName != channel1.DisplayName {
 		t.Fatal("full name didn't match")
 	}
 
-	if data.Channels[1].DisplayName != channel2.DisplayName {
+	if (*channels)[1].DisplayName != channel2.DisplayName {
 		t.Fatal("full name didn't match")
 	}
 
@@ -717,13 +719,13 @@ func TestGetMoreChannel(t *testing.T) {
 	th.LoginBasic2()
 
 	rget := Client.Must(Client.GetMoreChannels(""))
-	data := rget.Data.(*model.ChannelList)
+	channels := rget.Data.(*model.ChannelList)
 
-	if data.Channels[0].DisplayName != channel1.DisplayName {
+	if (*channels)[0].DisplayName != channel1.DisplayName {
 		t.Fatal("full name didn't match")
 	}
 
-	if data.Channels[1].DisplayName != channel2.DisplayName {
+	if (*channels)[1].DisplayName != channel2.DisplayName {
 		t.Fatal("full name didn't match")
 	}
 
@@ -765,6 +767,30 @@ func TestGetChannelCounts(t *testing.T) {
 		} else if cache_result.Data.(*model.ChannelCounts) != nil {
 			t.Log(cache_result.Data)
 			t.Fatal("result data should be empty")
+		}
+	}
+
+}
+
+func TestGetMyChannelMembers(t *testing.T) {
+	th := Setup().InitBasic()
+	Client := th.BasicClient
+	team := th.BasicTeam
+
+	channel1 := &model.Channel{DisplayName: "A Test API Name", Name: "a" + model.NewId() + "a", Type: model.CHANNEL_OPEN, TeamId: team.Id}
+	channel1 = Client.Must(Client.CreateChannel(channel1)).Data.(*model.Channel)
+
+	channel2 := &model.Channel{DisplayName: "B Test API Name", Name: "a" + model.NewId() + "a", Type: model.CHANNEL_OPEN, TeamId: team.Id}
+	channel2 = Client.Must(Client.CreateChannel(channel2)).Data.(*model.Channel)
+
+	if result, err := Client.GetMyChannelMembers(); err != nil {
+		t.Fatal(err)
+	} else {
+		members := result.Data.(*model.ChannelMembers)
+
+		// town-square, off-topic, basic test channel, channel1, channel2
+		if len(*members) != 5 {
+			t.Fatal("wrong number of members", len(*members))
 		}
 	}
 
@@ -905,7 +931,7 @@ func TestLeaveChannel(t *testing.T) {
 
 	rget := Client.Must(Client.GetChannels(""))
 	cdata := rget.Data.(*model.ChannelList)
-	for _, c := range cdata.Channels {
+	for _, c := range *cdata {
 		if c.Name == model.DEFAULT_CHANNEL {
 			if _, err := Client.LeaveChannel(c.Id); err == nil {
 				t.Fatal("should have errored on leaving default channel")
@@ -969,7 +995,7 @@ func TestDeleteChannel(t *testing.T) {
 
 	rget := Client.Must(Client.GetChannels(""))
 	cdata := rget.Data.(*model.ChannelList)
-	for _, c := range cdata.Channels {
+	for _, c := range *cdata {
 		if c.Name == model.DEFAULT_CHANNEL {
 			if _, err := Client.DeleteChannel(c.Id); err == nil {
 				t.Fatal("should have errored on deleting default channel")
@@ -1249,7 +1275,7 @@ func TestUpdateNotifyProps(t *testing.T) {
 	data["user_id"] = user.Id
 	data["desktop"] = model.CHANNEL_NOTIFY_MENTION
 
-	timeBeforeUpdate := model.GetMillis()
+	//timeBeforeUpdate := model.GetMillis()
 	time.Sleep(100 * time.Millisecond)
 
 	// test updating desktop
@@ -1259,14 +1285,6 @@ func TestUpdateNotifyProps(t *testing.T) {
 		t.Fatal("NotifyProps[\"desktop\"] did not update properly")
 	} else if notifyProps["mark_unread"] != model.CHANNEL_MARK_UNREAD_ALL {
 		t.Fatalf("NotifyProps[\"mark_unread\"] changed to %v", notifyProps["mark_unread"])
-	}
-
-	rget := Client.Must(Client.GetChannels(""))
-	rdata := rget.Data.(*model.ChannelList)
-	if len(rdata.Members) == 0 || rdata.Members[channel1.Id].NotifyProps["desktop"] != data["desktop"] {
-		t.Fatal("NotifyProps[\"desktop\"] did not update properly")
-	} else if rdata.Members[channel1.Id].LastUpdateAt <= timeBeforeUpdate {
-		t.Fatal("LastUpdateAt did not update")
 	}
 
 	// test an empty update

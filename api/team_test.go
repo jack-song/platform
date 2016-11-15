@@ -63,7 +63,7 @@ func TestCreateFromSignupTeam(t *testing.T) {
 	}
 
 	c1 := Client.Must(Client.GetChannels("")).Data.(*model.ChannelList)
-	if len(c1.Channels) != 2 {
+	if len(*c1) != 2 {
 		t.Fatal("default channels not created")
 	}
 
@@ -94,7 +94,7 @@ func TestCreateTeam(t *testing.T) {
 	Client.SetTeamId(rteam.Data.(*model.Team).Id)
 
 	c1 := Client.Must(Client.GetChannels("")).Data.(*model.ChannelList)
-	if len(c1.Channels) != 2 {
+	if len(*c1) != 2 {
 		t.Fatal("default channels not created")
 	}
 
@@ -706,7 +706,25 @@ func TestGetTeamStats(t *testing.T) {
 	if result, err := th.SystemAdminClient.GetTeamStats(th.BasicTeam.Id); err != nil {
 		t.Fatal(err)
 	} else {
-		if result.Data.(*model.TeamStats).MemberCount != 2 {
+		if result.Data.(*model.TeamStats).TotalMemberCount != 2 {
+			t.Fatal("wrong count")
+		}
+
+		if result.Data.(*model.TeamStats).ActiveMemberCount != 2 {
+			t.Fatal("wrong count")
+		}
+	}
+
+	th.SystemAdminClient.Must(th.SystemAdminClient.UpdateActive(th.BasicUser2.Id, false))
+
+	if result, err := th.SystemAdminClient.GetTeamStats(th.BasicTeam.Id); err != nil {
+		t.Fatal(err)
+	} else {
+		if result.Data.(*model.TeamStats).TotalMemberCount != 2 {
+			t.Fatal("wrong count")
+		}
+
+		if result.Data.(*model.TeamStats).ActiveMemberCount != 1 {
 			t.Fatal("wrong count")
 		}
 	}
@@ -714,7 +732,11 @@ func TestGetTeamStats(t *testing.T) {
 	if result, err := th.SystemAdminClient.GetTeamStats("junk"); err != nil {
 		t.Fatal(err)
 	} else {
-		if result.Data.(*model.TeamStats).MemberCount != 0 {
+		if result.Data.(*model.TeamStats).TotalMemberCount != 0 {
+			t.Fatal("wrong count")
+		}
+
+		if result.Data.(*model.TeamStats).ActiveMemberCount != 0 {
 			t.Fatal("wrong count")
 		}
 	}
@@ -722,7 +744,7 @@ func TestGetTeamStats(t *testing.T) {
 	if result, err := th.SystemAdminClient.GetTeamStats(th.BasicTeam.Id); err != nil {
 		t.Fatal(err)
 	} else {
-		if result.Data.(*model.TeamStats).MemberCount != 2 {
+		if result.Data.(*model.TeamStats).TotalMemberCount != 2 {
 			t.Fatal("wrong count")
 		}
 	}

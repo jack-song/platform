@@ -13,6 +13,7 @@ import SearchSuggestionList from './suggestion/search_suggestion_list.jsx';
 import SearchUserProvider from './suggestion/search_user_provider.jsx';
 import * as Utils from 'utils/utils.jsx';
 import Constants from 'utils/constants.jsx';
+import {loadProfilesForPosts} from 'actions/post_actions.jsx';
 
 import {FormattedMessage, FormattedHTMLMessage} from 'react-intl';
 
@@ -27,7 +28,7 @@ export default class SearchBar extends React.Component {
         this.mounted = false;
 
         this.onListenerChange = this.onListenerChange.bind(this);
-        this.handleInput = this.handleInput.bind(this);
+        this.handleChange = this.handleChange.bind(this);
         this.handleUserFocus = this.handleUserFocus.bind(this);
         this.handleUserBlur = this.handleUserBlur.bind(this);
         this.performSearch = this.performSearch.bind(this);
@@ -94,7 +95,7 @@ export default class SearchBar extends React.Component {
         });
     }
 
-    handleInput(e) {
+    handleChange(e) {
         var term = e.target.value;
         SearchStore.storeSearchTerm(term);
         SearchStore.emitSearchTermChange(false);
@@ -129,6 +130,8 @@ export default class SearchBar extends React.Component {
                         results: data,
                         is_mention_search: isMentionSearch
                     });
+
+                    loadProfilesForPosts(data.posts);
                 },
                 (err) => {
                     this.setState({isSearching: false});
@@ -188,7 +191,7 @@ export default class SearchBar extends React.Component {
                         value={this.state.searchTerm}
                         onFocus={this.handleUserFocus}
                         onBlur={this.handleUserBlur}
-                        onInput={this.handleInput}
+                        onChange={this.handleChange}
                         listComponent={SearchSuggestionList}
                         providers={this.suggestionProviders}
                         type='search'

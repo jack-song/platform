@@ -241,7 +241,6 @@ func (u *User) ClearNonProfileFields() {
 	u.Password = ""
 	u.AuthData = new(string)
 	*u.AuthData = ""
-	u.MfaActive = false
 	u.MfaSecret = ""
 	u.EmailVerified = false
 	u.AllowMarketing = false
@@ -336,6 +335,11 @@ func IsValidUserRoles(userRoles string) bool {
 		if !isValidRole(r) {
 			return false
 		}
+	}
+
+	// Exclude just the system_admin role explicitly to prevent mistakes
+	if len(roles) == 1 && roles[0] == "system_admin" {
+		return false
 	}
 
 	return true

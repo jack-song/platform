@@ -57,8 +57,8 @@
         "DriverName": "mysql",
         "DataSource": "mmuser:mostest@tcp(dockerhost:3306)/mattermost_test?charset=utf8mb4,utf8",
         "DataSourceReplicas": [],
-        "MaxIdleConns": 10,
-        "MaxOpenConns": 10,
+        "MaxIdleConns": 20,
+        "MaxOpenConns": 300,
         "Trace": false,
         "AtRestEncryptKey": ""
     },
@@ -95,11 +95,9 @@
         "AmazonS3AccessKeyId": "",
         "AmazonS3SecretAccessKey": "",
         "AmazonS3Bucket": "",
-        "AmazonS3Region": "",
-        "AmazonS3Endpoint": "",
-        "AmazonS3BucketEndpoint": "",
-        "AmazonS3LocationConstraint": false,
-        "AmazonS3LowercaseBucket": false
+        "AmazonS3Region": "us-east-1",
+        "AmazonS3Endpoint": "s3.amazonaws.com",
+        "AmazonS3SSL": true
     },
     "EmailSettings": {
         "EnableSignUpWithEmail": true,

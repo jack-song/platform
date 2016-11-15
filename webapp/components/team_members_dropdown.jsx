@@ -37,9 +37,10 @@ export default class TeamMembersDropdown extends React.Component {
             role: null
         };
     }
+
     handleMakeMember() {
         const me = UserStore.getCurrentUser();
-        if (this.props.user.id === me.id) {
+        if (this.props.user.id === me.id && me.roles.includes('system_admin')) {
             this.handleDemote(this.props.user, 'team_user');
         } else {
             Client.updateTeamMemberRoles(
@@ -47,7 +48,7 @@ export default class TeamMembersDropdown extends React.Component {
                 this.props.user.id,
                 'team_user',
                 () => {
-                    AsyncClient.getTeamMember(this.props.teamMember.team_id);
+                    AsyncClient.getTeamMember(this.props.teamMember.team_id, this.props.user.id);
                     AsyncClient.getUser(this.props.user.id);
                 },
                 (err) => {
@@ -56,11 +57,14 @@ export default class TeamMembersDropdown extends React.Component {
             );
         }
     }
+
     handleRemoveFromTeam() {
         removeUserFromTeam(
             this.props.teamMember.team_id,
             this.props.user.id,
             () => {
+                UserStore.removeProfileFromTeam(this.props.teamMember.team_id, this.props.user.id);
+                UserStore.emitInTeamChange();
                 AsyncClient.getTeamStats(this.props.teamMember.team_id);
             },
             (err) => {
@@ -68,6 +72,7 @@ export default class TeamMembersDropdown extends React.Component {
             }
         );
     }
+
     handleMakeActive() {
         Client.updateActive(this.props.user.id, true,
             () => {
@@ -80,6 +85,7 @@ export default class TeamMembersDropdown extends React.Component {
             }
         );
     }
+
     handleMakeNotActive() {
         Client.updateActive(this.props.user.id, false,
             () => {
@@ -92,9 +98,10 @@ export default class TeamMembersDropdown extends React.Component {
             }
         );
     }
+
     handleMakeAdmin() {
         const me = UserStore.getCurrentUser();
-        if (this.props.user.id === me.id) {
+        if (this.props.user.id === me.id && me.roles.includes('system_admin')) {
             this.handleDemote(this.props.user, 'team_user team_admin');
         } else {
             Client.updateTeamMemberRoles(
@@ -111,6 +118,7 @@ export default class TeamMembersDropdown extends React.Component {
             );
         }
     }
+
     handleDemote(user, role, newRole) {
         this.setState({
             serverError: this.state.serverError,
@@ -120,6 +128,7 @@ export default class TeamMembersDropdown extends React.Component {
             newRole
         });
     }
+
     handleDemoteCancel() {
         this.setState({
             serverError: null,
@@ -129,6 +138,7 @@ export default class TeamMembersDropdown extends React.Component {
             newRole: null
         });
     }
+
     handleDemoteSubmit() {
         Client.updateTeamMemberRoles(
             this.props.teamMember.team_id,
@@ -150,6 +160,7 @@ export default class TeamMembersDropdown extends React.Component {
             }
         );
     }
+
     render() {
         let serverError = null;
         if (this.state.serverError) {

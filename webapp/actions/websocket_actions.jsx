@@ -20,6 +20,7 @@ import * as AsyncClient from 'utils/async_client.jsx';
 import * as GlobalActions from 'actions/global_actions.jsx';
 import {handleNewPost, loadPosts} from 'actions/post_actions.jsx';
 import {loadProfilesAndTeamMembersForDMSidebar} from 'actions/user_actions.jsx';
+import {loadChannelsForCurrentUser} from 'actions/channel_actions.jsx';
 import * as StatusActions from 'actions/status_actions.jsx';
 
 import {Constants, SocketEvents, UserStatuses} from 'utils/constants.jsx';
@@ -29,34 +30,37 @@ import {browserHistory} from 'react-router/es6';
 const MAX_WEBSOCKET_FAILS = 7;
 
 export function initialize() {
-    if (window.WebSocket) {
-        let connUrl = Utils.getSiteURL();
-
-        // replace the protocol with a websocket one
-        if (connUrl.startsWith('https:')) {
-            connUrl = connUrl.replace(/^https:/, 'wss:');
-        } else {
-            connUrl = connUrl.replace(/^http:/, 'ws:');
-        }
-
-        // append a port number if one isn't already specified
-        if (!(/:\d+$/).test(connUrl)) {
-            if (connUrl.startsWith('wss:')) {
-                connUrl += ':' + global.window.mm_config.WebsocketSecurePort;
-            } else {
-                connUrl += ':' + global.window.mm_config.WebsocketPort;
-            }
-        }
-
-        // append the websocket api path
-        connUrl += Client.getUsersRoute() + '/websocket';
-
-        WebSocketClient.setEventCallback(handleEvent);
-        WebSocketClient.setFirstConnectCallback(handleFirstConnect);
-        WebSocketClient.setReconnectCallback(handleReconnect);
-        WebSocketClient.setCloseCallback(handleClose);
-        WebSocketClient.initialize(connUrl);
+    if (!window.WebSocket) {
+        console.log('Browser does not support websocket'); //eslint-disable-line no-console
+        return;
     }
+
+    let connUrl = Utils.getSiteURL();
+
+    // replace the protocol with a websocket one
+    if (connUrl.startsWith('https:')) {
+        connUrl = connUrl.replace(/^https:/, 'wss:');
+    } else {
+        connUrl = connUrl.replace(/^http:/, 'ws:');
+    }
+
+    // append a port number if one isn't already specified
+    if (!(/:\d+$/).test(connUrl)) {
+        if (connUrl.startsWith('wss:')) {
+            connUrl += ':' + global.window.mm_config.WebsocketSecurePort;
+        } else {
+            connUrl += ':' + global.window.mm_config.WebsocketPort;
+        }
+    }
+
+    // append the websocket api path
+    connUrl += Client.getUsersRoute() + '/websocket';
+
+    WebSocketClient.setEventCallback(handleEvent);
+    WebSocketClient.setFirstConnectCallback(handleFirstConnect);
+    WebSocketClient.setReconnectCallback(handleReconnect);
+    WebSocketClient.setCloseCallback(handleClose);
+    WebSocketClient.initialize(connUrl);
 }
 
 export function close() {
@@ -75,7 +79,7 @@ function handleFirstConnect() {
 
 function handleReconnect() {
     if (Client.teamId) {
-        AsyncClient.getChannels();
+        loadChannelsForCurrentUser();
         loadPosts(ChannelStore.getCurrentId());
     }
 
@@ -176,7 +180,7 @@ function handleNewPostEvent(msg) {
 function handlePostEditEvent(msg) {
     // Store post
     const post = JSON.parse(msg.data.post);
-    PostStore.storePost(post);
+    PostStore.storePost(post, false);
     PostStore.emitChange();
 
     // Update channel state
@@ -198,17 +202,22 @@ function handlePostDeleteEvent(msg) {
 }
 
 function handleNewUserEvent(msg) {
-    AsyncClient.getUser(msg.user_id);
+    if (TeamStore.getCurrentId() === '') {
+        // Any new users will be loaded when we switch into a context with a team
+        return;
+    }
+
+    AsyncClient.getUser(msg.data.user_id);
     AsyncClient.getChannelStats();
     loadProfilesAndTeamMembersForDMSidebar();
 }
 
 function handleLeaveTeamEvent(msg) {
     if (UserStore.getCurrentId() === msg.data.user_id) {
-        TeamStore.removeMyTeamMember(msg.broadcast.team_id);
+        TeamStore.removeMyTeamMember(msg.data.team_id);
 
         // if they are on the team being removed redirect them to the root
-        if (TeamStore.getCurrentId() === msg.broadcast.team_id) {
+        if (TeamStore.getCurrentId() === msg.data.team_id) {
             TeamStore.setCurrentId('');
             Client.setTeamId('');
             browserHistory.push('/');
@@ -233,7 +242,7 @@ function handleUserAddedEvent(msg) {
 
 function handleUserRemovedEvent(msg) {
     if (UserStore.getCurrentId() === msg.broadcast.user_id) {
-        AsyncClient.getChannels();
+        loadChannelsForCurrentUser();
 
         if (msg.data.remover_id !== msg.broadcast.user_id &&
                 msg.data.channel_id === ChannelStore.getCurrentId() &&
@@ -254,9 +263,6 @@ function handleUserUpdatedEvent(msg) {
     const user = msg.data.user;
     if (UserStore.getCurrentId() !== user.id) {
         UserStore.saveProfile(user);
-        if (UserStore.hasDirectProfile(user.id)) {
-            UserStore.saveDirectProfile(user);
-        }
         UserStore.emitChange(user.id);
     }
 }
@@ -275,7 +281,7 @@ function handleChannelDeletedEvent(msg) {
         const teamUrl = TeamStore.getCurrentTeamRelativeUrl();
         browserHistory.push(teamUrl + '/channels/' + Constants.DEFAULT_CHANNEL);
     }
-    AsyncClient.getChannels();
+    loadChannelsForCurrentUser();
 }
 
 function handlePreferenceChangedEvent(msg) {

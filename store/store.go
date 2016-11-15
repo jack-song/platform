@@ -70,7 +70,8 @@ type TeamStore interface {
 	GetMember(teamId string, userId string) StoreChannel
 	GetMembers(teamId string, offset int, limit int) StoreChannel
 	GetMembersByIds(teamId string, userIds []string) StoreChannel
-	GetMemberCount(teamId string) StoreChannel
+	GetTotalMemberCount(teamId string) StoreChannel
+	GetActiveMemberCount(teamId string) StoreChannel
 	GetTeamsForUser(userId string) StoreChannel
 	RemoveMember(teamId string, userId string) StoreChannel
 	RemoveAllMembersByTeam(teamId string) StoreChannel
@@ -91,6 +92,7 @@ type ChannelStore interface {
 	GetChannels(teamId string, userId string) StoreChannel
 	GetMoreChannels(teamId string, userId string) StoreChannel
 	GetChannelCounts(teamId string, userId string) StoreChannel
+	GetTeamChannels(teamId string) StoreChannel
 	GetAll(teamId string) StoreChannel
 	GetForPost(postId string) StoreChannel
 	SaveMember(member *model.ChannelMember) StoreChannel
@@ -109,6 +111,7 @@ type ChannelStore interface {
 	IncrementMentionCount(channelId string, userId string) StoreChannel
 	AnalyticsTypeCount(teamId string, channelType string) StoreChannel
 	ExtraUpdateByUser(userId string, time int64) StoreChannel
+	GetMembersForUser(teamId string, userId string) StoreChannel
 }
 
 type PostStore interface {
@@ -140,6 +143,7 @@ type UserStore interface {
 	UpdateMfaActive(userId string, active bool) StoreChannel
 	Get(id string) StoreChannel
 	GetAll() StoreChannel
+	InvalidateProfilesInChannelCacheByUser(userId string)
 	InvalidateProfilesInChannelCache(channelId string)
 	GetProfilesInChannel(channelId string, offset int, limit int, allowFromCache bool) StoreChannel
 	GetProfilesNotInChannel(teamId string, channelId string, offset int, limit int) StoreChannel
@@ -163,15 +167,16 @@ type UserStore interface {
 	GetUnreadCount(userId string) StoreChannel
 	GetUnreadCountForChannel(userId string, channelId string) StoreChannel
 	GetRecentlyActiveUsersForTeam(teamId string) StoreChannel
-	Search(teamId string, term string, searchType string) StoreChannel
-	SearchInChannel(channelId string, term string, searchType string) StoreChannel
-	SearchNotInChannel(teamId string, channelId string, term string, searchType string) StoreChannel
+	Search(teamId string, term string, options map[string]bool) StoreChannel
+	SearchInChannel(channelId string, term string, options map[string]bool) StoreChannel
+	SearchNotInChannel(teamId string, channelId string, term string, options map[string]bool) StoreChannel
 }
 
 type SessionStore interface {
 	Save(session *model.Session) StoreChannel
 	Get(sessionIdOrToken string) StoreChannel
 	GetSessions(userId string) StoreChannel
+	GetSessionsWithActiveDeviceIds(userId string) StoreChannel
 	Remove(sessionIdOrToken string) StoreChannel
 	RemoveAllSessions() StoreChannel
 	PermanentDeleteSessionsByUser(teamId string) StoreChannel
