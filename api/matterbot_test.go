@@ -17,7 +17,7 @@ func messageCountFromMatterbot(t *testing.T, c *model.Client, u *model.User, exp
 	)
 
 	// matterbot must exist by now?
-	if mresult := <-Srv.Store.User().GetByUsername(MATTERBOT_NAME); mresult.Err == nil {
+	if mresult := <-Srv.Store.User().GetByUsername(matterbotName); mresult.Err == nil {
 		c.Login(u.Username, u.Password)
 		matterbot := mresult.Data.(*model.User)
 

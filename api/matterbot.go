@@ -17,7 +17,7 @@ import (
 var matterbotUser *model.User
 
 const (
-	matterbotName  = "matter-bot"
+	matterbotName  = "Matterbot"
 	matterbotEmail = "matterbot@mattermost.com"
 )
 
